@@ -1,0 +1,24 @@
+[project]
+name = "psccostcheck"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "EillesWan", email = "W-YI_DoctorYI@outlook.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.3.3",
+    "pyinstaller>=6.19.0",
+    "rich>=14.3.3",
+    "tomli>=2.4.1",
+    "tomli-w>=1.2.0",
+    "wxpython>=4.2.5",
+]
+
+[project.scripts]
+psccostcheck = "psccostcheck:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
