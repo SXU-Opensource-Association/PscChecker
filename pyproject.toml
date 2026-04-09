@@ -8,12 +8,14 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "openpyxl>=3.1.5",
     "pandas>=2.3.3",
     "pyinstaller>=6.19.0",
     "rich>=14.3.3",
     "tomli>=2.4.1",
     "tomli-w>=1.2.0",
     "wxpython>=4.2.5",
+    "xlsxwriter>=3.2.9",
 ]
 
 [project.scripts]
