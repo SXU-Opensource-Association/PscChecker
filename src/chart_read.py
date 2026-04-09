@@ -2,12 +2,161 @@
 
 import pandas as pd
 import json
-from typing import List, Dict, Optional, Any, Set
+from typing import List, Dict, Optional, Any, Set, Iterable
 from pathlib import Path
+
+from datetime import datetime, timedelta, date
+from dataclasses import dataclass
+from rich import print as prt
+
+def validate_id_number(id_card_n: str):
+    """
+    初步验证18位中国身份证号码是否格式正确。
+    不使用正则表达式和第三方库。
+    """
+    if not isinstance(id_card_n, str):
+        return False
+
+    id_card_n = id_card_n.strip().upper()
+
+    if len(id_card_n) != 18:
+        return False
+
+    # 检查前17位是否全为数字
+    if not id_card_n[:17].isdigit():
+        return False
+
+    # 检查最后一位是否为数字或大写X
+    if not (id_card_n[17].isdigit() or id_card_n[17] == "X"):
+        return False
+
+    # 提取出生年月日
+    try:
+        year = int(id_card_n[6:10])
+        month = int(id_card_n[10:12])
+        day = int(id_card_n[12:14])
+
+        birthday = date(year, month, day)
+    except (ValueError, OverflowError):
+        return False
+
+    # 简单范围检查
+    if not (date(1949, 10, 1) < birthday < datetime.now().date()):
+        return False
+
+    # 校验码验证
+    weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+    check_codes = ["1", "0", "X", "9", "8", "7", "6", "5", "4", "3", "2"]
+
+    total = sum(weights[i] * int(id_card_n[i]) for i in range(17))
+
+    remainder = total % 11
+    expected_check = check_codes[remainder]
+
+    return id_card_n[17] == expected_check
+
+
+@dataclass
+class PersonStatus:
+    OK = 0
+    FINE_WITH_ID_ERROR = 1
+    FINE_WITH_NAME_ERROR = 2
+    ERROR = 3
+
+    name: str
+    id: str
+
+    def __init__(self, name: str, id: Any):
+        self.id = str(id).strip()
+        self.name = name.strip()
+
+    def compare(self, other: "PersonStatus") -> int:
+        if self.id == other.id:
+            if self.name == other.name:
+                return PersonStatus.OK
+            else:
+                return PersonStatus.FINE_WITH_NAME_ERROR
+        else:
+            if self.name == other.name:
+                return PersonStatus.FINE_WITH_ID_ERROR
+            else:
+                return PersonStatus.ERROR
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, PersonStatus):
+            return False
+        return self.compare(other) == PersonStatus.OK
+
+    # def get_status_text(self) -> str:
+    #     if self.status == PersonStatus.OK:
+    #         return _("存在")
+    #     elif self.status == PersonStatus.FINE_WITH_ID_ERROR:
+    #         return _("姓名存在*学号错误")
+    #     elif self.status == PersonStatus.FINE_WITH_NAME_ERROR:
+    #         return _("学号存在*姓名错误")
+    #     else:
+    #         return _("查无此人")
+
+    def get_name(self) -> str:
+        return self.name
+
+    def get_id(self) -> str:
+        return self.id
+
+    def __repr__(self) -> str:
+        return f"PersonStatus(name={self.name}, id={self.id})"
+
+    def __str__(self) -> str:
+        return f"{self.name} {self.id}"
 
 
 class CheckPerson:
     """存储单个学生普通话测试信息的类"""
+
+    name: str
+    """考生姓名"""
+    gender: str
+    """考生性别"""
+    ethnicity: str
+    """考生民族"""
+    id_type: str
+    """证件类型"""
+    id_number: str
+    """证件编号"""
+    occupation: str
+    """从事职业"""
+    organization: str
+    """所在单位"""
+    phone: str
+    """联系电话"""
+    student_id: str
+    """考生学号"""
+    class_name: str
+    """考生班级"""
+    department: str
+    """考生院系"""
+    is_graduating: bool
+    """是否为毕业年级"""
+    contact_address: str
+    """联系地址"""
+    mailing_address: str
+    """邮寄地址"""
+    postal_code: str
+    """邮政编码"""
+    birth_province: str
+    """出生所在省"""
+    birth_city: str
+    """出生所在城市"""
+    birth_district: str
+    """出生所在县(区)"""
+    current_province: str
+    """现居住省"""
+    current_city: str
+    """现居住城市"""
+    current_district: str
+    """现居住县(区)"""
+    should_pay_cost: Optional[bool]
+    """是否应缴费"""
 
     def __init__(
         self,
@@ -32,7 +181,7 @@ class CheckPerson:
         current_province: str = "",
         current_city: str = "",
         current_district: str = "",
-        should_pay_cost: str = "25",
+        should_pay_cost: Optional[bool] = None,
     ):
         """
         初始化学生信息
@@ -81,9 +230,7 @@ class CheckPerson:
         self.current_province = current_province
         self.current_city = current_city
         self.current_district = current_district
-        self.should_pay_cost = str(
-            should_pay_cost if should_pay_cost in ["25", "35", "0"] else ""
-        )
+        self.should_pay_cost = should_pay_cost
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
@@ -109,7 +256,7 @@ class CheckPerson:
             "现居住省": self.current_province,
             "现居住城市": self.current_city,
             "现居住县(区)": self.current_district,
-            "应缴费款": self.should_pay_cost,
+            "是否应缴费": self.should_pay_cost,
         }
 
     @classmethod
@@ -139,7 +286,7 @@ class CheckPerson:
             current_province=data.get("现居住省", ""),
             current_city=data.get("现居住城市", ""),
             current_district=data.get("现居住县(区)", ""),
-            should_pay_cost=data.get("应缴费款", ""),
+            should_pay_cost=data.get("是否应缴费", ""),
         )
 
     def __repr__(self) -> str:
@@ -177,7 +324,8 @@ class PscPersonManager:
     def __init__(self):
         self.students: List[CheckPerson] = []
 
-    def load_from_excel(self, file_path: str) -> None:
+    @classmethod
+    def load_from_excel(cls, file_path: str) -> "PscPersonManager":
         """
         从Excel文件加载学生数据
 
@@ -185,6 +333,7 @@ class PscPersonManager:
             file_path: Excel文件路径
         """
         try:
+            instance = cls()
             # 读取Excel文件
             df = pd.read_excel(file_path, dtype=str)
 
@@ -198,16 +347,16 @@ class PscPersonManager:
             df: pd.DataFrame = df.fillna("")
 
             # 转换为CheckPerson对象列表
-            self.students = []
+            instance.students = []
             for _, row in df.iterrows():
                 row = row.to_dict()
                 student_data = {}
-                for col_name, attr_name in self.TOTAL_CHART_COLUMN_MAPPING.items():
+                for col_name, attr_name in instance.TOTAL_CHART_COLUMN_MAPPING.items():
                     if col_name in df.columns:
                         student_data[attr_name] = row[col_name]
 
-                self.students.append(CheckPerson(**student_data))
-
+                instance.students.append(CheckPerson(**student_data))
+            return instance
         except Exception as e:
             raise ValueError(f"加载Excel文件失败: {str(e)}")
 
@@ -241,7 +390,8 @@ class PscPersonManager:
                 # 应用文本格式到整列
                 worksheet.set_column(col_num, col_num, None, text_format)
 
-    def load_from_json(self, file_path: str) -> None:
+    @classmethod
+    def load_from_json(cls, file_path: str) -> "PscPersonManager":
         """
         从JSON文件加载学生数据
 
@@ -249,10 +399,12 @@ class PscPersonManager:
             file_path: JSON文件路径
         """
         try:
+            instance = cls()
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            self.students = [CheckPerson.from_dict(item) for item in data]
+            instance.students = [CheckPerson.from_dict(item) for item in data]
+            return instance
 
         except Exception as e:
             raise ValueError(f"加载JSON文件失败: {str(e)}")
@@ -283,7 +435,7 @@ class PscPersonManager:
 
     def validate_against_fee_lists(
         self, exempt_file: str, fee_file: str
-    ) -> Dict[str, List[Dict[str, str]]]:
+    ) -> Iterable[Dict[str, Any]]:
         """
         校验总表与缴费名单的一致性
 
@@ -295,57 +447,66 @@ class PscPersonManager:
             dict: 包含各种错误类型的字典
         """
         # 1. 读取免缴费名单
-        exempt_df: pd.DataFrame = pd.read_excel(exempt_file, dtype=str).fillna("")
-        exempt_df = exempt_df[["序号", "学院", "姓名", "学号", "备注"]]
+        exempt_df: pd.DataFrame = pd.read_excel(exempt_file,skiprows=2, dtype=str).fillna("")
+        exempt_df = exempt_df[2:][["序号", "学院", "姓名", "学号", "备注"]]
 
         # 2. 读取缴费名单
-        fee_df: pd.DataFrame = pd.read_excel(fee_file, dtype=str).fillna("")
-        fee_df = fee_df[["序号", "姓名", "性别", "院系", "学号", "缴费金额"]]
+        fee_df: pd.DataFrame = pd.read_excel(fee_file,skiprows=1, dtype=str).fillna("")
+        fee_df = fee_df[1:][["序号", "姓名", "性别", "院系", "学号", "缴费金额"]]
 
-        # 3. 构建索引：学号 -> 姓名映射
-        exempt_index: Dict[str, Dict[str, str]] = {}
+        # 3. 构建索引
+        exempt_ids: List[str] = []
+        exempt_names: List[str] = []
         for _, row in exempt_df.iterrows():
-            student_id = str(row["学号"]).strip()
-            if student_id:
-                exempt_index[student_id] = {
-                    "姓名": str(row["姓名"]).strip(),
-                    "学院": str(row["学院"]).strip(),
-                    "备注": str(row["备注"]).strip(),
-                }
+            exempt_ids.append(str(row["学号"]).strip())
+            exempt_names.append(str(row["姓名"]).strip())
 
-        fee_index: Dict[str, Dict[str, str]] = {}
+        fee_ids: List[str] = []
+        fee_names: List[str] = []
+        fee_costs: List[str] = []
         for _, row in fee_df.iterrows():
-            student_id = str(row["学号"]).strip()
-            if student_id:
-                fee_index[student_id] = {
-                    "姓名": str(row["姓名"]).strip(),
-                    "性别": str(row["性别"]).strip(),
-                    "院系": str(row["院系"]).strip(),
-                    "缴费金额": str(row["缴费金额"]).strip(),
-                }
+            fee_ids.append(str(row["学号"]).strip())
+            fee_names.append(str(row["姓名"]).strip())
+            fee_costs.append(str(row["缴费金额"]).strip())
 
         # 4. 准备结果字典
-        errors = {
-            "missing_in_both": [],  # 在总表中但不在任何名单中
-            "fee_amount_error": [],  # 缴费金额有误
-            "in_fee_not_in_total": [],  # 在缴费名单但不在总表中
-            "in_exempt_not_in_total": [],  # 在免缴费名单但不在总表中
-            "name_mismatch": [],  # 姓名不一致
-            "student_id_mismatch": [],  # 学号不一致（用于检测重复学号）
-        }
+        # errors = {
+        #     "missing_in_both": [],  # 在总表中但不在任何名单中
+        #     "fee_amount_error": [],  # 缴费金额有误
+        #     "in_fee_not_in_total": [],  # 在缴费名单但不在总表中
+        #     "in_exempt_not_in_total": [],  # 在免缴费名单但不在总表中
+        #     "name_mismatch": [],  # 姓名不一致
+        #     "student_id_mismatch": [],  # 学号不一致（用于检测重复学号）
+        # }
 
         # 5. 遍历总表中的每个人员
-        total_name_map: Dict[str, str] = {}
+        total_ids: List[str] = []
+        total_names: List[str] = []
 
-        for person in self.students:
+        for i, person in enumerate(self.students):
             person.student_id = person.student_id.strip()
             person.name = person.name.strip()
             person.id_number = person.id_number.strip()
+            if (not validate_id_number(person.id_number)) and (
+                person.id_type == "身份证"
+            ):
+                yield {
+                    "总表项目序号": i,
+                    "学号": person.student_id,
+                    "姓名": person.name,
+                    "身份证": person.id_number,
+                    "需缴费": None,
+                    "原因": "身份证号格式错误",
+                }
 
-            total_name_map[person.student_id] = person.name
+            total_ids.append(person.student_id)
+            total_names.append(person.name)
+
+        exempt_checked_index = []
+        fee_checked_index = []
 
         # 6. 检查总表中的人是否在缴费名单中
-        for person in self.students:
+        for i in range(len(self.students)):
             # student_id = person.student_id.strip()
             # name = person.name.strip()
 
@@ -353,193 +514,184 @@ class PscPersonManager:
             # if not student_id:
             #     continue
 
-            in_exempt = person.student_id in exempt_index
-            in_fee = person.student_id in fee_index
+            person = self.students[i]
+
+            in_exempt = (person.student_id in exempt_ids) + (
+                person.name in exempt_names
+            )
+            in_fee = (person.student_id in fee_ids) + (person.name in fee_names)
 
             # 情况1: 在总表中但不在任何名单中
             if not in_exempt and not in_fee:
-                errors["missing_in_both"].append(
-                    {
-                        "学号": person.student_id,
-                        "姓名": person.name,
-                        "身份证": person.id_number,
-                        "原因": "未在免缴费名单或缴费名单中找到",
-                    }
-                )
+                yield {
+                    "总表项目序号": i,
+                    "学号": person.student_id,
+                    "姓名": person.name,
+                    "身份证": person.id_number,
+                    "需缴费": None,
+                    "原因": "不在缴费或免缴名单中",
+                }
 
             # 情况2: 在免缴费名单中
-            if in_exempt:
-                exempt_info = exempt_index[person.student_id]
-                # 检查姓名是否一致
-                if exempt_info["姓名"] != person.name:
-                    errors["name_mismatch"].append(
-                        {
+            elif in_exempt:
+                if in_exempt == 1:
+                    if person.student_id in exempt_ids:
+                        exempt_checked_index.append(
+                            _eii := exempt_ids.index(person.student_id)
+                        )
+                        yield {
+                            "总表项目序号": i,
                             "学号": person.student_id,
                             "姓名": person.name,
                             "身份证": person.id_number,
-                            "原因": "免缴费名单与总表姓名不一致",
+                            "需缴费": False,
+                            "原因": "免缴费名单中的【姓名：{}】与总表不一致".format(
+                                exempt_names[_eii]
+                            ),
                         }
-                    )
-
-                person.should_pay_cost = "0"
-                # # 检查应缴费金额是否正确
-                # if person.should_pay_cost != "0":
-                #     errors["fee_amount_error"].append(
-                #         {
-                #             "学号": person.student_id,
-                #             "姓名": person.name,
-                #             "身份证": person.id_number,
-                #             "原因": "免缴费人员应缴费金额应为0",
-                #         }
-                #     )
-
-            # 情况3: 在缴费名单中
-            if in_fee:
-                fee_info = fee_index[person.student_id]
-                # 检查姓名是否一致
-                if fee_info["姓名"] != person.name:
-                    errors["name_mismatch"].append(
-                        {
-                            "学号": person.student_id,
-                            "总表姓名": person.name,
-                            "缴费名单姓名": fee_info["姓名"],
-                            "原因": "姓名不一致",
-                        }
-                    )
-
-                # 检查缴费金额是否正确
-                fee_amount = fee_info["缴费金额"]
-
-                if fee_amount not in ["25", "35"]:
-                    errors["fee_amount_error"].append(
-                        {
+                    else:
+                        exempt_checked_index.append(
+                            _eni := exempt_names.index(person.name)
+                        )
+                        yield {
+                            "总表项目序号": i,
                             "学号": person.student_id,
                             "姓名": person.name,
-                            "缴费名单金额": fee_amount,
-                            "原因": "缴费金额应为25或35元",
+                            "身份证": person.id_number,
+                            "需缴费": False,
+                            "原因": "免缴费名单中的【学号：{}】与总表不一致".format(
+                                exempt_ids[_eni]
+                            ),
                         }
-                    )
+                else:
+                    _exe_nme = exempt_names[_eii := exempt_ids.index(person.student_id)]
+                    exempt_checked_index.append(_eii)
+                    if _exe_nme == person.name:
+                        person.should_pay_cost = False
+                    else:
+                        yield {
+                            "总表项目序号": i,
+                            "学号": person.student_id,
+                            "姓名": person.name,
+                            "身份证": person.id_number,
+                            "需缴费": False,
+                            "原因": "免缴费名单中的【姓名{}】与总表不一致".format(
+                                _exe_nme
+                            ),
+                        }
+            else:
+                person.should_pay_cost = True
+                if in_fee == 1:
+                    if person.student_id in fee_ids:
+                        fee_checked_index.append(fee_ids.index(person.student_id))
+                    else:
+                        fee_checked_index.append(fee_names.index(person.name))
+                else:
+                    fee_checked_index.append(fee_ids.index(person.student_id))
+
+            # # 情况3: 在缴费名单中
+            # if in_fee:
+            #     if in_fee == 1:
+            #         if person.student_id in fee_ids:
+            #             fee_checked_index.append(
+            #                 _fii := fee_ids.index(person.student_id)
+            #             )
+            #             yield {
+            #                 "总表项目序号": i,
+            #                 "学号": person.student_id,
+            #                 "姓名": person.name,
+            #                 "身份证": person.id_number,
+            #                 "需缴费": True,
+            #                 "原因": "缴费名单中的【姓名：{}】与总表不一致".format(
+            #                     fee_names[_fii]
+            #                 ),
+            #             }
+            #         else:
+            #             yield {
+            #                 "总表项目序号": i,
+            #                 "学号": person.student_id,
+            #                 "姓名": person.name,
+            #                 "身份证": person.id_number,
+            #                 "需缴费": True,
+            #                 "原因": "缴费名单中的【学号：{}】与总表不一致".format(
+            #                     fee_ids[fee_names.index(person.name)]
+            #                 ),
+            #             }
+            #     else:
+            #         _fee_nme = fee_names[fee_ids.index(person.student_id)]
+            #         _fee_id = fee_ids[fee_names.index(person.name)]
+            #         if _fee_nme == person.name:
+            #             if _fee_id == person.student_id:
+            #                 person.should_pay_cost = True
+            #             else:
+            #                 yield {
+            #                     "总表项目序号": i,
+            #                     "学号": person.student_id,
+            #                     "姓名": person.name,
+            #                     "身份证": person.id_number,
+            #                     "需缴费": True,
+            #                     "原因": "缴费名单中的【学号{}】与总表不一致".format(
+            #                         _fee_id
+            #                     ),
+            #                 }
+            #         else:
+            #             if _fee_id == person.student_id:
+            #                 yield {
+            #                     "总表项目序号": i,
+            #                     "学号": person.student_id,
+            #                     "姓名": person.name,
+            #                     "身份证": person.id_number,
+            #                     "需缴费": True,
+            #                     "原因": "缴费名单中的【姓名{}】与总表不一致".format(
+            #                         _fee_nme
+            #                     ),
+            #                 }
+            #             else:
+            #                 yield {
+            #                     "总表项目序号": i,
+            #                     "学号": person.student_id,
+            #                     "姓名": person.name,
+            #                     "身份证": person.id_number,
+            #                     "需缴费": True,
+            #                     "原因": "缴费名单中的【学号{}】【姓名{}】皆与总表不一致".format(
+            #                         _fee_id, _fee_nme
+            #                     ),
+            #                 }
 
         # 7. 检查缴费名单中但不在总表中的人
-        for student_id, fee_info in fee_index.items():
-            if student_id not in total_name_map:
-                errors["in_fee_not_in_total"].append(
-                    {
-                        "学号": student_id,
-                        "姓名": fee_info["姓名"],
-                        "性别": fee_info.get("性别", ""),
-                        "院系": fee_info.get("院系", ""),
-                        "缴费金额": fee_info["缴费金额"],
-                        "原因": "在缴费名单中但未在总表中找到",
-                    }
-                )
+        for i in range(len(fee_ids)):
+            if i not in fee_checked_index:
+                yield {
+                    "总表项目序号": -1,
+                    "学号": fee_ids[i],
+                    "姓名": fee_names[i],
+                    "身份证": "??",
+                    "需缴费": True,
+                    "原因": "在缴费名单中但未在总表中找到",
+                }
 
         # 8. 检查免缴费名单中但不在总表中的人
-        for student_id, exempt_info in exempt_index.items():
-            if student_id not in total_name_map:
-                errors["in_exempt_not_in_total"].append(
-                    {
-                        "学号": student_id,
-                        "姓名": exempt_info["姓名"],
-                        "学院": exempt_info.get("学院", ""),
-                        "备注": exempt_info.get("备注", ""),
-                        "原因": "在免缴费名单中但未在总表中找到",
-                    }
-                )
-
-        # 9. 清理空列表
-        for key in list(errors.keys()):
-            if not errors[key]:
-                del errors[key]
-
-        return errors
-
-    def auto_fill_should_pay_cost(self):
-        """根据人员类型自动填充应缴费金额"""
-        for person in self.students:
-            # 默认为学生
-            cost = "25"
-
-            # 判断是否为教师
-            is_teacher = False
-            if (
-                (
-                    person.occupation
-                    and any(
-                        kw in person.occupation for kw in ["教师", "教职工", "教工"]
-                    )
-                )
-                or (
-                    person.department
-                    and any(kw in person.department for kw in ["教师", "教工"])
-                )
-                or (
-                    person.class_name
-                    and any(kw in person.class_name for kw in ["教师", "教工"])
-                )
-            ):
-                is_teacher = True
-
-            person.should_pay_cost = "35" if is_teacher else "25"
+        for i in range(len(exempt_ids)):
+            if i not in exempt_checked_index:
+                yield {
+                    "总表项目序号": -1,
+                    "学号": exempt_ids[i],
+                    "姓名": exempt_names[i],
+                    "身份证": "??",
+                    "需缴费": False,
+                    "原因": "在免缴费名单中但未在总表中找到",
+                }
 
     def get_summary_stats(self) -> Dict[str, int]:
         """获取统计摘要"""
-        stats = {"total": len(self.students), "students": 0, "teachers": 0, "exempt": 0}
+        stats = {"total": len(self.students), "shouldpay": 0, "exempt": 0, "error": 0}
 
         for person in self.students:
-            if person.should_pay_cost == "25":
-                stats["students"] += 1
-            elif person.should_pay_cost == "35":
-                stats["teachers"] += 1
-            elif person.should_pay_cost == "0":
+            if person.should_pay_cost is True:
                 stats["exempt"] += 1
+            elif person.should_pay_cost is False:
+                stats["shouldpay"] += 1
+            else:
+                stats["error"] += 1
 
         return stats
-
-
-# 使用示例
-if __name__ == "__main__":
-    # 创建管理器实例
-    manager = PscPersonManager()
-
-    # 示例：从Excel读取数据
-    # manager.load_from_excel("mandarin_test_list.xlsx")
-
-    # 示例：添加学生
-    student1 = CheckPerson(
-        name="张三",
-        gender="男",
-        ethnicity="汉族",
-        id_type="身份证",
-        id_number="123456789012345678",
-        occupation="学生",
-        organization="XX大学",
-        phone="13800138000",
-        student_id="20230001",
-        class_name="计算机科学与技术2023级1班",
-        department="计算机学院",
-        is_graduating=False,
-        contact_address="XX市XX区XX路XX号",
-        mailing_address="XX市XX区XX路XX号",
-        postal_code="100000",
-        birth_province="北京市",
-        birth_city="北京市",
-        birth_district="海淀区",
-        current_province="北京市",
-        current_city="北京市",
-        current_district="海淀区",
-    )
-
-    manager.add_student(student1)
-
-    # 保存为JSON（高效的数据存储格式）
-    manager.save_to_json("mandarin_test_data.json")
-
-    # 从JSON加载
-    manager_new = PscPersonManager()
-    manager_new.load_from_json("mandarin_test_data.json")
-
-    # 导出为Excel
-    manager_new.save_to_excel("mandarin_test_output.xlsx")
-
-    print(f"成功处理 {len(manager_new.get_students())} 名学生数据")

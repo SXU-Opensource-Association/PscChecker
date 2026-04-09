@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from rich import print as prt
+
 
 
 import wx
@@ -10,8 +10,11 @@ import wx.grid
 
 import gettext
 
-from yanlun import YanlunText
+from rich import print as prt
 from pathlib import Path
+
+from yanlun import YanlunText
+from chart_read import PscPersonManager, CheckPerson
 
 _ = gettext.gettext
 
@@ -817,13 +820,68 @@ class CostCheckerMainFrame(wx.Frame):
         event.Skip()
 
     def on_all_tocheck_chart_file_change(self, event):
-        self.m_totlechart_filePicker1.GetPath()
+        self.m_totalchart_picker_staticText2.SetLabel(
+            Path(self.m_totlechart_filePicker1.GetPath()).name
+        )
+        self.current_pscmanager: PscPersonManager = PscPersonManager.load_from_excel(
+            self.m_totlechart_filePicker1.GetPath()
+        )
+        # self.m_totlechart_filePicker1.GetPath()
         event.Skip()
 
     def on_needpay_chart_file_change(self, event):
+        self.m_needcost_picker_staticText21.SetLabel(
+            Path(self.m_needcost_chart_filePicker11.GetPath()).name
+        )
+        if (
+            self.m_totlechart_filePicker1.GetPath()
+            and self.m_noneed_chart_filePicker111.GetPath()
+        ):
+            for response in self.current_pscmanager.validate_against_fee_lists(
+                exempt_file=self.m_noneed_chart_filePicker111.GetPath(),
+                fee_file=self.m_needcost_chart_filePicker11.GetPath(),
+            ):
+                """
+                {
+                    "总表项目序号": i,
+                    "学号": person.student_id,
+                    "姓名": person.name,
+                    "身份证": person.id_number,
+                    "需缴费": None,
+                    "原因": "身份证号格式错误",
+                }
+                """
+                self.m_read_result_textCtrl1.AppendText(
+                    f"{response['姓名']}{response['学号']}，证件号{response['身份证']}{'，无需缴费' if response['需缴费'] is False else ('，应缴费' if response['需缴费'] is True else '')}，{response['原因']}\n"
+                )
         event.Skip()
 
     def on_nocost_chart_file_change(self, event):
+        self.m_noneed_picker_staticText211.SetLabel(
+            Path(self.m_noneed_chart_filePicker111.GetPath()).name
+        )
+        if (
+            self.m_totlechart_filePicker1.GetPath()
+            and self.m_noneed_chart_filePicker111.GetPath()
+        ):
+            for response in self.current_pscmanager.validate_against_fee_lists(
+                exempt_file=self.m_noneed_chart_filePicker111.GetPath(),
+                fee_file=self.m_needcost_chart_filePicker11.GetPath(),
+            ):
+                """
+                {
+                    "总表项目序号": i,
+                    "学号": person.student_id,
+                    "姓名": person.name,
+                    "身份证": person.id_number,
+                    "需缴费": None,
+                    "原因": "身份证号格式错误",
+                }
+                """
+                self.m_read_result_textCtrl1.AppendText(
+                    f"{response['姓名']}{response['学号']}，证件号{response['身份证']}{'，无需缴费' if response['需缴费'] is False else ('，应缴费' if response['需缴费'] is True else '')}，{response['原因']}\n"
+                )
+
         event.Skip()
 
     def on_read_data_school_change(self, event):
