@@ -7,6 +7,9 @@ src/yanlun.py
 # 数据文件
 impdata/
 
+# Pyinstaller
+*.spec
+
 # Python-generated files
 __pycache__/
 *.py[oc]

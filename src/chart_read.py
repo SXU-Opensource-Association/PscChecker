@@ -2,17 +2,22 @@
 
 import pandas as pd
 import json
-from typing import List, Dict, Optional, Any, Set, Iterable
+from typing import List, Dict, Optional, Any, Set, Iterable, Mapping
 from pathlib import Path
 
 from datetime import datetime, timedelta, date
 from dataclasses import dataclass
 from rich import print as prt
 
+
+# 校验码验证
+id_validation_weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+id_validation_check_codes = ["1", "0", "X", "9", "8", "7", "6", "5", "4", "3", "2"]
+
+
 def validate_id_number(id_card_n: str):
     """
     初步验证18位中国身份证号码是否格式正确。
-    不使用正则表达式和第三方库。
     """
     if not isinstance(id_card_n, str):
         return False
@@ -44,16 +49,12 @@ def validate_id_number(id_card_n: str):
     if not (date(1949, 10, 1) < birthday < datetime.now().date()):
         return False
 
-    # 校验码验证
-    weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
-    check_codes = ["1", "0", "X", "9", "8", "7", "6", "5", "4", "3", "2"]
-
-    total = sum(weights[i] * int(id_card_n[i]) for i in range(17))
-
-    remainder = total % 11
-    expected_check = check_codes[remainder]
-
-    return id_card_n[17] == expected_check
+    return (
+        id_card_n[17]
+        == id_validation_check_codes[
+            sum(id_validation_weights[i] * int(id_card_n[i]) for i in range(17)) % 11
+        ]
+    )
 
 
 @dataclass
@@ -325,7 +326,7 @@ class PscPersonManager:
         self.students: List[CheckPerson] = []
 
     @classmethod
-    def load_from_excel(cls, file_path: str) -> "PscPersonManager":
+    def load_from_excel(cls, file_path: str | Path) -> "PscPersonManager":
         """
         从Excel文件加载学生数据
 
@@ -360,7 +361,7 @@ class PscPersonManager:
         except Exception as e:
             raise ValueError(f"加载Excel文件失败: {str(e)}")
 
-    def save_to_excel(self, file_path: str) -> None:
+    def save_to_excel(self, file_path: str | Path) -> None:
         """
         保存学生数据到Excel文件
 
@@ -391,7 +392,7 @@ class PscPersonManager:
                 worksheet.set_column(col_num, col_num, None, text_format)
 
     @classmethod
-    def load_from_json(cls, file_path: str) -> "PscPersonManager":
+    def load_from_json(cls, file_path: str | Path) -> "PscPersonManager":
         """
         从JSON文件加载学生数据
 
@@ -409,7 +410,7 @@ class PscPersonManager:
         except Exception as e:
             raise ValueError(f"加载JSON文件失败: {str(e)}")
 
-    def save_to_json(self, file_path: str) -> None:
+    def save_to_json(self, file_path: str | Path) -> None:
         """
         保存学生数据到JSON文件
 
@@ -447,11 +448,13 @@ class PscPersonManager:
             dict: 包含各种错误类型的字典
         """
         # 1. 读取免缴费名单
-        exempt_df: pd.DataFrame = pd.read_excel(exempt_file,skiprows=2, dtype=str).fillna("")
+        exempt_df: pd.DataFrame = pd.read_excel(
+            exempt_file, skiprows=2, dtype=str
+        ).fillna("")
         exempt_df = exempt_df[2:][["序号", "学院", "姓名", "学号", "备注"]]
 
         # 2. 读取缴费名单
-        fee_df: pd.DataFrame = pd.read_excel(fee_file,skiprows=1, dtype=str).fillna("")
+        fee_df: pd.DataFrame = pd.read_excel(fee_file, skiprows=1, dtype=str).fillna("")
         fee_df = fee_df[1:][["序号", "姓名", "性别", "院系", "学号", "缴费金额"]]
 
         # 3. 构建索引
@@ -661,8 +664,15 @@ class PscPersonManager:
         # 7. 检查缴费名单中但不在总表中的人
         for i in range(len(fee_ids)):
             if i not in fee_checked_index:
+                self.students.append(
+                    CheckPerson(
+                        name=fee_names[i],
+                        student_id=fee_ids[i],
+                        should_pay_cost=True,
+                    )
+                )
                 yield {
-                    "总表项目序号": -1,
+                    "总表项目序号": len(self.students) - 1,
                     "学号": fee_ids[i],
                     "姓名": fee_names[i],
                     "身份证": "??",
@@ -673,8 +683,15 @@ class PscPersonManager:
         # 8. 检查免缴费名单中但不在总表中的人
         for i in range(len(exempt_ids)):
             if i not in exempt_checked_index:
+                self.students.append(
+                    CheckPerson(
+                        name=exempt_names[i],
+                        student_id=exempt_ids[i],
+                        should_pay_cost=False,
+                    )
+                )
                 yield {
-                    "总表项目序号": -1,
+                    "总表项目序号": len(self.students) - 1,
                     "学号": exempt_ids[i],
                     "姓名": exempt_names[i],
                     "身份证": "??",
@@ -682,16 +699,20 @@ class PscPersonManager:
                     "原因": "在免缴费名单中但未在总表中找到",
                 }
 
-    def get_summary_stats(self) -> Dict[str, int]:
+    def get_summary_stats(self):
         """获取统计摘要"""
-        stats = {"total": len(self.students), "shouldpay": 0, "exempt": 0, "error": 0}
+        stats = {"total": len(self.students), "shouldpay": 0, "exempt": 0, "error": 0, "grad": 0, "error_rate": 0.0}
 
         for person in self.students:
-            if person.should_pay_cost is True:
-                stats["exempt"] += 1
-            elif person.should_pay_cost is False:
-                stats["shouldpay"] += 1
-            else:
+            if person.should_pay_cost is None:
                 stats["error"] += 1
+            else:
+                stats["grad"] += person.is_graduating
+                if person.should_pay_cost:
+                    stats["shouldpay"] += 1
+                else:
+                    stats["exempt"] += 1
+
+        stats["error_rate"] = stats["error"] * 100 / stats["total"]
 
         return stats

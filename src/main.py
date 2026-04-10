@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 
 
-
-
 import wx
 import wx.xrc
 import wx.dataview
 import wx.grid
 
+import json
 import gettext
 
+from datetime import datetime, date
+from typing import Dict, List, Optional, Union, Set
 from rich import print as prt
 from pathlib import Path
 
@@ -19,6 +20,72 @@ from chart_read import PscPersonManager, CheckPerson
 _ = gettext.gettext
 
 __version__ = "2026.04"
+
+SCHOOL_NAMES = [
+    "文学院",
+    "历史文化学院",
+    "哲学学院",
+    "外国语学院",
+    "教育科学学院",
+    "初民学院",
+    "马克思主义学院",
+    "新闻学院",
+    "考古文博学院",
+    "数学与统计学院",
+    "计算机与信息技术学院",
+    "物理电子工程学院",
+    "化学化工学院",
+    "体育学院",
+    "音乐学院",
+    "美术学院",
+    "继续教育学院",
+    "国际教育交流学院",
+    "政治与公共管理学院",
+    "法学院",
+    "经济与管理学院",
+    "生命科学学院",
+    "环境与资源学院",
+    "电力与建筑学院",
+    "自动化与软件学院",
+]
+
+SPERATE_SCHOOL_ZONE = {
+    "坞城": [
+        "文学院",
+        "历史文化学院",
+        "哲学学院",
+        "外国语学院",
+        "教育科学学院",
+        "初民学院",
+        "马克思主义学院",
+        "新闻学院",
+        "考古文博学院",
+        "数学与统计学院",
+        "计算机与信息技术学院",
+        "物理电子工程学院",
+        "化学化工学院",
+        "体育学院",
+        "音乐学院",
+        "美术学院",
+        "继续教育学院",
+        "国际教育交流学院",
+    ],
+    "东山": [
+        "政治与公共管理学院",
+        "法学院",
+        "经济与管理学院",
+        "生命科学学院",
+        "环境与资源学院",
+        "电力与建筑学院",
+        "自动化与软件学院",
+    ],
+}
+
+
+RESULT_PATH = Path("./result").resolve()
+
+RESULT_PATH.mkdir(parents=True, exist_ok=True)
+
 
 ###########################################################################
 ## Class CostCheckerMainFrame
@@ -110,7 +177,7 @@ class CostCheckerMainFrame(wx.Frame):
             wx.StaticBox(self.m_panel1, wx.ID_ANY, _("受测学生总表")), wx.VERTICAL
         )
 
-        self.m_totlechart_filePicker1 = wx.FilePickerCtrl(
+        self.m_totalchart_filePicker1 = wx.FilePickerCtrl(
             total_chart_select_sizer.GetStaticBox(),
             wx.ID_ANY,
             wx.EmptyString,
@@ -121,7 +188,7 @@ class CostCheckerMainFrame(wx.Frame):
             wx.FLP_DEFAULT_STYLE,
         )
         total_chart_select_sizer.Add(
-            self.m_totlechart_filePicker1, 0, wx.ALL | wx.EXPAND, 5
+            self.m_totalchart_filePicker1, 0, wx.ALL | wx.EXPAND, 5
         )
 
         self.m_totalchart_picker_staticText2 = wx.StaticText(
@@ -288,33 +355,7 @@ class CostCheckerMainFrame(wx.Frame):
 
         bSizer9.Add(self.m_staticText16, 0, wx.ALL, 5)
 
-        m_school_choice1Choices = [
-            _("文学院"),
-            _("历史文化学院"),
-            _("哲学学院"),
-            _("外国语学院"),
-            _("教育科学学院"),
-            _("初民学院"),
-            _("马克思主义学院"),
-            _("新闻学院"),
-            _("考古文博学院"),
-            _("数学与统计学院"),
-            _("计算机与信息技术学院"),
-            _("物理电子工程学院"),
-            _("化学化工学院"),
-            _("体育学院"),
-            _("音乐学院"),
-            _("美术学院"),
-            _("继续教育学院"),
-            _("国际教育交流学院"),
-            _("政治与公共管理学院"),
-            _("法学院"),
-            _("经济与管理学院"),
-            _("生命科学学院"),
-            _("环境与资源学院"),
-            _("电力与建筑学院"),
-            _("自动化与软件学院"),
-        ]
+        m_school_choice1Choices = SCHOOL_NAMES.copy()
         self.m_school_choice1 = wx.Choice(
             self.m_panel1,
             wx.ID_ANY,
@@ -359,16 +400,6 @@ class CostCheckerMainFrame(wx.Frame):
             wx.DefaultPosition,
             wx.DefaultSize,
             wx.NB_LEFT | wx.NB_NOPAGETHEME,
-        )
-        self.m_notebook2.SetFont(
-            wx.Font(
-                wx.NORMAL_FONT.GetPointSize(),
-                wx.FONTFAMILY_DEFAULT,
-                wx.FONTSTYLE_NORMAL,
-                wx.FONTWEIGHT_NORMAL,
-                False,
-                wx.EmptyString,
-            )
         )
 
         self.m_panel4 = wx.Panel(
@@ -538,33 +569,7 @@ class CostCheckerMainFrame(wx.Frame):
 
         bSizer91.Add(self.m_staticText161, 0, wx.ALL, 5)
 
-        m_school_choice2Choices = [
-            _("文学院"),
-            _("历史文化学院"),
-            _("哲学学院"),
-            _("外国语学院"),
-            _("教育科学学院"),
-            _("初民学院"),
-            _("马克思主义学院"),
-            _("新闻学院"),
-            _("考古文博学院"),
-            _("数学与统计学院"),
-            _("计算机与信息技术学院"),
-            _("物理电子工程学院"),
-            _("化学化工学院"),
-            _("体育学院"),
-            _("音乐学院"),
-            _("美术学院"),
-            _("继续教育学院"),
-            _("国际教育交流学院"),
-            _("政治与公共管理学院"),
-            _("法学院"),
-            _("经济与管理学院"),
-            _("生命科学学院"),
-            _("环境与资源学院"),
-            _("电力与建筑学院"),
-            _("自动化与软件学院"),
-        ]
+        m_school_choice2Choices = SCHOOL_NAMES.copy()
         self.m_school_choice2 = wx.Choice(
             self.m_panel2,
             wx.ID_ANY,
@@ -601,7 +606,7 @@ class CostCheckerMainFrame(wx.Frame):
         )
         bSizer13 = wx.BoxSizer(wx.VERTICAL)
 
-        self.m_dataViewListCtrl2 = wx.dataview.DataViewListCtrl(
+        self.m_export_total_dataViewListCtrl2 = wx.dataview.DataViewListCtrl(
             self.m_panel3,
             wx.ID_ANY,
             wx.DefaultPosition,
@@ -611,7 +616,7 @@ class CostCheckerMainFrame(wx.Frame):
             | wx.dataview.DV_VERT_RULES,
         )
         self.m_schoolname_dataViewListColumn6 = (
-            self.m_dataViewListCtrl2.AppendTextColumn(
+            self.m_export_total_dataViewListCtrl2.AppendTextColumn(
                 _("学院"),
                 wx.dataview.DATAVIEW_CELL_INERT,
                 250,
@@ -619,44 +624,52 @@ class CostCheckerMainFrame(wx.Frame):
                 wx.dataview.DATAVIEW_COL_RESIZABLE,
             )
         )
-        self.m_checkin_dataViewListColumn7 = self.m_dataViewListCtrl2.AppendTextColumn(
-            _("报名人数"),
-            wx.dataview.DATAVIEW_CELL_INERT,
-            120,
-            wx.ALIGN_LEFT,
-            wx.dataview.DATAVIEW_COL_RESIZABLE,
-        )
-        self.m_needpay_dataViewListColumn8 = self.m_dataViewListCtrl2.AppendTextColumn(
-            _("应缴人数"),
-            wx.dataview.DATAVIEW_CELL_INERT,
-            120,
-            wx.ALIGN_LEFT,
-            wx.dataview.DATAVIEW_COL_RESIZABLE,
-        )
-        self.m_nocost_dataViewListColumn9 = self.m_dataViewListCtrl2.AppendTextColumn(
-            _("免缴费数"),
-            wx.dataview.DATAVIEW_CELL_INERT,
-            120,
-            wx.ALIGN_LEFT,
-            wx.dataview.DATAVIEW_COL_RESIZABLE,
-        )
-        self.m_unfix_dataViewListColumn11 = self.m_dataViewListCtrl2.AppendTextColumn(
-            _("未修正错误"),
-            wx.dataview.DATAVIEW_CELL_INERT,
-            120,
-            wx.ALIGN_LEFT,
-            wx.dataview.DATAVIEW_COL_RESIZABLE,
-        )
-        self.m_shouldpaymoney_dataViewListColumn10 = (
-            self.m_dataViewListCtrl2.AppendTextColumn(
-                _("应缴费款"),
-                wx.dataview.DATAVIEW_CELL_INERT,
+        self.m_checkin_dataViewListColumn7 = (
+            self.m_export_total_dataViewListCtrl2.AppendTextColumn(
+                _("报名人数"),
+                wx.dataview.DATAVIEW_CELL_EDITABLE,
                 120,
                 wx.ALIGN_LEFT,
                 wx.dataview.DATAVIEW_COL_RESIZABLE,
             )
         )
-        bSizer13.Add(self.m_dataViewListCtrl2, 3, wx.ALL | wx.EXPAND, 5)
+        self.m_needpay_dataViewListColumn8 = (
+            self.m_export_total_dataViewListCtrl2.AppendTextColumn(
+                _("应缴人数"),
+                wx.dataview.DATAVIEW_CELL_EDITABLE,
+                120,
+                wx.ALIGN_LEFT,
+                wx.dataview.DATAVIEW_COL_RESIZABLE,
+            )
+        )
+        self.m_nocost_dataViewListColumn9 = (
+            self.m_export_total_dataViewListCtrl2.AppendTextColumn(
+                _("免缴费数"),
+                wx.dataview.DATAVIEW_CELL_EDITABLE,
+                120,
+                wx.ALIGN_LEFT,
+                wx.dataview.DATAVIEW_COL_RESIZABLE,
+            )
+        )
+        self.m_unfix_dataViewListColumn11 = (
+            self.m_export_total_dataViewListCtrl2.AppendTextColumn(
+                _("未修正错误"),
+                wx.dataview.DATAVIEW_CELL_EDITABLE,
+                120,
+                wx.ALIGN_LEFT,
+                wx.dataview.DATAVIEW_COL_RESIZABLE,
+            )
+        )
+        self.m_shouldpaymoney_dataViewListColumn10 = (
+            self.m_export_total_dataViewListCtrl2.AppendTextColumn(
+                _("应缴费款"),
+                wx.dataview.DATAVIEW_CELL_EDITABLE,
+                120,
+                wx.ALIGN_LEFT,
+                wx.dataview.DATAVIEW_COL_RESIZABLE,
+            )
+        )
+        bSizer13.Add(self.m_export_total_dataViewListCtrl2, 3, wx.ALL | wx.EXPAND, 5)
 
         self.m_totalexport_staticText14 = wx.StaticText(
             self.m_panel3,
@@ -739,7 +752,7 @@ class CostCheckerMainFrame(wx.Frame):
         )
         self.Bind(wx.EVT_MENU, self.on_exit_button_click, id=self.m_menuItem3.GetId())
         self.m_yanluntext1.Bind(wx.EVT_LEFT_DCLICK, self.on_yanlun_double_click)
-        self.m_totlechart_filePicker1.Bind(
+        self.m_totalchart_filePicker1.Bind(
             wx.EVT_FILEPICKER_CHANGED, self.on_all_tocheck_chart_file_change
         )
         self.m_needcost_chart_filePicker11.Bind(
@@ -750,6 +763,12 @@ class CostCheckerMainFrame(wx.Frame):
         )
         self.m_school_choice1.Bind(wx.EVT_CHOICE, self.on_read_data_school_change)
         self.m_button1.Bind(wx.EVT_BUTTON, self.on_read_data_save_button_click)
+        self.m_notebook1.Bind(
+            wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page1_notebook_changed
+        )
+        self.m_notebook2.Bind(
+            wx.EVT_NOTEBOOK_PAGE_CHANGED, self.on_page2_notebook_changed
+        )
         self.m_dataViewListCtrl1.Bind(
             wx.dataview.EVT_DATAVIEW_ITEM_EDITING_DONE,
             self.on_wrong_data_item_editing_done,
@@ -779,13 +798,20 @@ class CostCheckerMainFrame(wx.Frame):
             wx.EVT_BUTTON, self.on_export_total_chart_button_click
         )
 
+        # 初始化当前数据
+        self.reset_whole_tocheck_chart()
+        self.sp_school_pscmanagers = {schn: PscPersonManager() for schn in SCHOOL_NAMES}
+        self.sp_school_errors = {schn: {} for schn in SCHOOL_NAMES}
+        self.sp_school_stats = {schn: {} for schn in SCHOOL_NAMES}
+        self.store_path: Optional[Path] = None
+
     def __del__(self):
         # Disconnect Events
         self.Unbind(wx.EVT_MENU, id=self.m_menuItem1.GetId())
         self.Unbind(wx.EVT_MENU, id=self.m_menuItem2.GetId())
         self.Unbind(wx.EVT_MENU, id=self.m_menuItem3.GetId())
         self.m_yanluntext1.Unbind(wx.EVT_LEFT_DCLICK, None)
-        self.m_totlechart_filePicker1.Unbind(wx.EVT_FILEPICKER_CHANGED, None)
+        self.m_totalchart_filePicker1.Unbind(wx.EVT_FILEPICKER_CHANGED, None)
         self.m_needcost_chart_filePicker11.Unbind(wx.EVT_FILEPICKER_CHANGED, None)
         self.m_noneed_chart_filePicker111.Unbind(wx.EVT_FILEPICKER_CHANGED, None)
         self.m_school_choice1.Unbind(wx.EVT_CHOICE, None)
@@ -805,8 +831,19 @@ class CostCheckerMainFrame(wx.Frame):
         self.m_export_splitschool_button3.Unbind(wx.EVT_BUTTON, None)
         self.m_export_thewhole_button4.Unbind(wx.EVT_BUTTON, None)
 
+    def initial_store_path(self):
+        self.store_path = RESULT_PATH / datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.store_path.mkdir(parents=True, exist_ok=True)
+
     # Virtual event handlers, override them in your derived class
     def on_new_project_button_click(self, event):
+        self.initial_store_path()
+
+        self.sp_school_pscmanagers = {schn: PscPersonManager() for schn in SCHOOL_NAMES}
+        self.sp_school_errors = {schn: {} for schn in SCHOOL_NAMES}
+        self.sp_school_stats = {schn: {} for schn in SCHOOL_NAMES}
+        self.reset_page1_all()
+
         event.Skip()
 
     def on_read_record_button_click(self, event):
@@ -819,75 +856,206 @@ class CostCheckerMainFrame(wx.Frame):
         self.m_yanluntext1.SwitchYanlunLabel()
         event.Skip()
 
+    def reset_whole_tocheck_chart(self):
+        self.m_totalchart_filePicker1.SetPath("")
+        self.m_totalchart_picker_staticText2.SetLabel("等待选择文件")
+        self.current_pscmanager = PscPersonManager()
+        self.current_psc_stats = {}
+        self.current_psc_errors = {}
+
+    def reset_needpay_chart(self):
+        self.m_needcost_chart_filePicker11.SetPath("")
+        self.m_needcost_picker_staticText21.SetLabel("等待选择文件")
+
+    def reset_nocost_chart(self):
+        self.m_noneed_chart_filePicker111.SetPath("")
+        self.m_noneed_picker_staticText211.SetLabel("等待选择文件")
+
+    def reset_read_result(self):
+        self.short_result_text.SetLabelText(
+            "【检查结果】总人数：000\t\t需缴费学生人数：000\t\t免缴费学生人数：000\t\t错误数据：000\t错误占比：000%"
+        )
+        self.m_read_result_textCtrl1.Clear()
+
+    def reset_page1_all(self):
+        self.reset_whole_tocheck_chart()
+        self.reset_needpay_chart()
+        self.reset_nocost_chart()
+        self.reset_read_result()
+
     def on_all_tocheck_chart_file_change(self, event):
         self.m_totalchart_picker_staticText2.SetLabel(
-            Path(self.m_totlechart_filePicker1.GetPath()).name
+            Path(self.m_totalchart_filePicker1.GetPath()).name
         )
         self.current_pscmanager: PscPersonManager = PscPersonManager.load_from_excel(
-            self.m_totlechart_filePicker1.GetPath()
+            self.m_totalchart_filePicker1.GetPath()
         )
+        self.reset_needpay_chart()
+        self.reset_nocost_chart()
+        self.reset_read_result()
         # self.m_totlechart_filePicker1.GetPath()
-        event.Skip()
+        # event.Skip()
+
+    def go_for_validate(self):
+        self.current_psc_errors = {}
+        for response in self.current_pscmanager.validate_against_fee_lists(
+            exempt_file=self.m_noneed_chart_filePicker111.GetPath(),
+            fee_file=self.m_needcost_chart_filePicker11.GetPath(),
+        ):
+            """
+            {
+                "总表项目序号": i,
+                "学号": person.student_id,
+                "姓名": person.name,
+                "身份证": person.id_number,
+                "需缴费": None,
+                "原因": "身份证号格式错误",
+            }
+            """
+            self.current_psc_errors[response["总表项目序号"]] = response
+            self.m_read_result_textCtrl1.AppendText(
+                f"{response['姓名']}{response['学号']}，证件号{response['身份证']}{'，无需缴费' if response['需缴费'] is False else ('，应缴费' if response['需缴费'] is True else '')}，{response['原因']}\n"
+            )
+
+        # {"total": 0, "shouldpay": 0, "exempt": 0, "error": 0, "grad": 0, "error_rate": 0.0"}
+        self.current_psc_stats = self.current_pscmanager.get_summary_stats()
+        self.short_result_text.SetLabelText(
+            "【检查结果】总人数：{total:3d}\t\t需缴费学生人数：{shouldpay:3d}\t免缴费学生人数：{exempt:3d}\t错误数据：{error:3d}\t错误占比：{error_rate:.2f}%".format(
+                **self.current_psc_stats
+            )
+        )
+        self.current_pscmanager.get_summary_stats()
 
     def on_needpay_chart_file_change(self, event):
+        # 先重置结果
+        self.reset_read_result()
+
+        # 改一下文件名提示
         self.m_needcost_picker_staticText21.SetLabel(
             Path(self.m_needcost_chart_filePicker11.GetPath()).name
         )
+
+        # 是不是所有表都有了？
         if (
-            self.m_totlechart_filePicker1.GetPath()
+            self.m_totalchart_filePicker1.GetPath()
             and self.m_noneed_chart_filePicker111.GetPath()
         ):
-            for response in self.current_pscmanager.validate_against_fee_lists(
-                exempt_file=self.m_noneed_chart_filePicker111.GetPath(),
-                fee_file=self.m_needcost_chart_filePicker11.GetPath(),
-            ):
-                """
-                {
-                    "总表项目序号": i,
-                    "学号": person.student_id,
-                    "姓名": person.name,
-                    "身份证": person.id_number,
-                    "需缴费": None,
-                    "原因": "身份证号格式错误",
-                }
-                """
-                self.m_read_result_textCtrl1.AppendText(
-                    f"{response['姓名']}{response['学号']}，证件号{response['身份证']}{'，无需缴费' if response['需缴费'] is False else ('，应缴费' if response['需缴费'] is True else '')}，{response['原因']}\n"
-                )
-        event.Skip()
+            self.go_for_validate()
+        # event.Skip()
 
     def on_nocost_chart_file_change(self, event):
+        self.reset_read_result()
         self.m_noneed_picker_staticText211.SetLabel(
             Path(self.m_noneed_chart_filePicker111.GetPath()).name
         )
         if (
-            self.m_totlechart_filePicker1.GetPath()
+            self.m_totalchart_filePicker1.GetPath()
             and self.m_noneed_chart_filePicker111.GetPath()
         ):
-            for response in self.current_pscmanager.validate_against_fee_lists(
-                exempt_file=self.m_noneed_chart_filePicker111.GetPath(),
-                fee_file=self.m_needcost_chart_filePicker11.GetPath(),
-            ):
-                """
-                {
-                    "总表项目序号": i,
-                    "学号": person.student_id,
-                    "姓名": person.name,
-                    "身份证": person.id_number,
-                    "需缴费": None,
-                    "原因": "身份证号格式错误",
-                }
-                """
-                self.m_read_result_textCtrl1.AppendText(
-                    f"{response['姓名']}{response['学号']}，证件号{response['身份证']}{'，无需缴费' if response['需缴费'] is False else ('，应缴费' if response['需缴费'] is True else '')}，{response['原因']}\n"
-                )
-
+            self.go_for_validate()
         event.Skip()
 
     def on_read_data_school_change(self, event):
+        now_school = self.m_school_choice1.GetStringSelection().replace(
+            "（已读入）", ""
+        )
+        # prt(now_school)
+        # prt(self.sp_school_stats[now_school])
+        if stat := self.sp_school_stats.get(now_school, {}):
+            self.short_result_text.SetLabelText(
+                "【检查结果】总人数：{total:3d}\t\t需缴费学生人数：{shouldpay:3d}\t免缴费学生人数：{exempt:3d}\t错误数据：{error:3d}\t错误占比：{error_rate:.2f}%".format(
+                    **self.sp_school_stats[now_school]
+                )
+            )
+        else:
+            self.reset_read_result()
         event.Skip()
 
     def on_read_data_save_button_click(self, event):
+        now_school = self.m_school_choice1.GetStringSelection().replace(
+            "（已读入）", ""
+        )
+
+        self.sp_school_pscmanagers[now_school] = self.current_pscmanager
+        self.sp_school_stats[now_school] = self.current_psc_stats
+        self.sp_school_errors[now_school] = self.current_psc_errors
+
+        if self.store_path is None:
+            self.initial_store_path()
+
+        (now_school_store_dir := (self.store_path / now_school).absolute()).mkdir(  # type: ignore
+            parents=True, exist_ok=True
+        )
+        self.current_pscmanager.save_to_json(now_school_store_dir / "students.json")
+        with open(now_school_store_dir / "errors.json", "w") as f:
+            json.dump(self.current_psc_errors, f)
+
+        self.m_school_choice1.SetString(
+            self.m_school_choice1.GetSelection(), now_school + "（已读入）"
+        )
+        self.reset_page1_all()
+
+        if self.m_school_choice1.GetSelection() == self.m_school_choice1.GetCount() - 1:
+            for i in range(self.m_school_choice1.GetCount()):
+                if "已读入" not in self.m_school_choice1.GetString(i):
+                    self.m_school_choice1.SetSelection(i)
+                    break
+            wx.MessageDialog(self, "所有学院的数据皆已导入", "提示").ShowModal()
+        else:
+            self.m_school_choice1.SetSelection(self.m_school_choice1.GetSelection() + 1)
+
+        event.Skip()
+
+    def on_page1_notebook_changed(self, event):
+        total_count = {"WC": {"T": 0, "G": 0}, "DX": {"T": 0, "G": 0}}
+        self.m_export_total_dataViewListCtrl2.DeleteAllItems()
+        if self.m_notebook1.GetSelection() == 2:
+            for school, stat in self.sp_school_stats.items():
+                # {"total": 0, "shouldpay": 0, "exempt": 0, "error": 0, "grad": 0, "error_rate": 0.0"}
+                if stat:
+                    # self.m_export_total_dataViewListCtrl2
+                    self.m_export_total_dataViewListCtrl2.AppendItem(
+                        [
+                            school,
+                            stat["total"],
+                            stat["shouldpay"],
+                            stat["exempt"],
+                            stat["error"],
+                            str(25 * int(stat["shouldpay"])),
+                        ]
+                    )
+                    if school in SPERATE_SCHOOL_ZONE["坞城"]:
+                        total_count["WC"]["T"] += stat["total"]
+                        total_count["WC"]["G"] += stat["grad"]
+                    elif school in SPERATE_SCHOOL_ZONE["东山"]:
+                        total_count["DX"]["T"] += stat["total"]
+                        total_count["DX"]["G"] += stat["grad"]
+                    else:
+                        # 怎么可能呢
+                        pass
+
+                    self.m_export_total_dataViewListCtrl2.Update()
+                    # self.m_checkin_dataViewListColumn7.
+            self.m_totalexport_staticText14.SetLabelText(
+                "总报名人数：{:3d}人\t\t坞城校区：{:3d}人\t\t东山校区：{:3d}人".format(
+                    total_count["WC"]["T"] + total_count["DX"]["T"],
+                    total_count["WC"]["T"],
+                    total_count["DX"]["T"],
+                )
+            )
+            self.m_wucheng_stats_staticText152.SetLabelText(
+                "\t其中，坞城校区——\t非毕业年级：{:3d}人\t\t毕业年级：{:3d}人".format(
+                    total_count["WC"]["T"] - total_count["WC"]["G"],
+                    total_count["WC"]["G"],
+                )
+            )
+            self.m_export_total_dataViewListCtrl2.Update()
+            self.m_totalexport_staticText14.Update()
+            self.m_wucheng_stats_staticText152.Update()
+
+        event.Skip()
+
+    def on_page2_notebook_changed(self, event):
         event.Skip()
 
     def on_wrong_data_item_editing_done(self, event):
