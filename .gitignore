@@ -6,6 +6,7 @@ src/yanlun.py
 
 # 数据文件
 impdata/
+src/result/
 
 # Pyinstaller
 *.spec
