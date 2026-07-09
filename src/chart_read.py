@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, date
 from dataclasses import dataclass
 from rich import print as prt
 
-
 # 校验码验证
 id_validation_weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
 id_validation_check_codes = ["1", "0", "X", "9", "8", "7", "6", "5", "4", "3", "2"]
@@ -451,11 +450,11 @@ class PscPersonManager:
         exempt_df: pd.DataFrame = pd.read_excel(
             exempt_file, skiprows=2, dtype=str
         ).fillna("")
-        exempt_df = exempt_df[2:][["序号", "学院", "姓名", "学号", "备注"]]
+        exempt_df = exempt_df[["序号", "学院", "姓名", "学号", "备注"]]
 
         # 2. 读取缴费名单
         fee_df: pd.DataFrame = pd.read_excel(fee_file, skiprows=1, dtype=str).fillna("")
-        fee_df = fee_df[1:][["序号", "姓名", "性别", "院系", "学号", "缴费金额"]]
+        fee_df = fee_df[["序号", "姓名", "性别", "院系", "学号", "缴费金额"]]
 
         # 3. 构建索引
         exempt_ids: List[str] = []
@@ -525,7 +524,12 @@ class PscPersonManager:
             in_fee = (person.student_id in fee_ids) + (person.name in fee_names)
 
             # 情况1: 在总表中但不在任何名单中
-            if not in_exempt and not in_fee:
+            if (not in_exempt) and (not in_fee):
+                # prt("[yellow]{}{}".format(person.student_id, person.name))
+                # prt("缴费")
+                # prt(fee_ids, fee_names)
+                # prt("免缴费")
+                # prt(exempt_ids, exempt_names)
                 yield {
                     "总表项目序号": i,
                     "学号": person.student_id,
@@ -701,7 +705,14 @@ class PscPersonManager:
 
     def get_summary_stats(self):
         """获取统计摘要"""
-        stats = {"total": len(self.students), "shouldpay": 0, "exempt": 0, "error": 0, "grad": 0, "error_rate": 0.0}
+        stats = {
+            "total": len(self.students),
+            "shouldpay": 0,
+            "exempt": 0,
+            "error": 0,
+            "grad": 0,
+            "error_rate": 0.0,
+        }
 
         for person in self.students:
             if person.should_pay_cost is None:
