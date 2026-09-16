@@ -173,6 +173,10 @@ class CostCheckerMainFrame(wx.Frame):
 
         file_select_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
+        left_select_sizer = wx.BoxSizer(
+            wx.VERTICAL
+        )
+
         total_chart_select_sizer = wx.StaticBoxSizer(
             wx.StaticBox(self.m_panel1, wx.ID_ANY, _("受测学生总表")), wx.VERTICAL
         )
@@ -205,7 +209,21 @@ class CostCheckerMainFrame(wx.Frame):
             self.m_totalchart_picker_staticText2, 0, wx.ALL | wx.EXPAND, 5
         )
 
-        file_select_sizer.Add(total_chart_select_sizer, 1, wx.ALIGN_CENTER, 5)
+        left_select_sizer.Add(total_chart_select_sizer, 1, wx.EXPAND, 5)
+
+
+        self.page1startcheck_button = wx.Button(
+            self.m_panel1,
+            wx.ID_ANY,
+            _("开始校对"),
+            wx.DefaultPosition,
+            wx.DefaultSize,
+            0,
+        )
+
+        left_select_sizer.Add(self.page1startcheck_button, 0, wx.ALL, 5)
+
+        file_select_sizer.Add(left_select_sizer, 1, wx.ALIGN_CENTER, 5)
 
         cost_chart_select_sizer = wx.StaticBoxSizer(
             wx.StaticBox(self.m_panel1, wx.ID_ANY, _("核对表目")), wx.VERTICAL

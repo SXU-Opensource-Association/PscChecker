@@ -1,7 +1,7 @@
 [project]
 name = "psccostcheck"
 version = "0.1.0"
-description = "Add your description here"
+description = "SXUpscPersonCostChecker"
 readme = "README.md"
 authors = [
     { name = "EillesWan", email = "W-YI_DoctorYI@outlook.com" }
