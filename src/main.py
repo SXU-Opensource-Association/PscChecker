@@ -19,7 +19,7 @@ from chart_read import PscPersonManager, CheckPerson
 
 _ = gettext.gettext
 
-__version__ = "2026.04"
+__version__ = "2026.11"
 
 SCHOOL_NAMES = [
     "文学院",
@@ -779,6 +779,9 @@ class CostCheckerMainFrame(wx.Frame):
         self.m_noneed_chart_filePicker111.Bind(
             wx.EVT_FILEPICKER_CHANGED, self.on_nocost_chart_file_change
         )
+        self.page1startcheck_button.Bind(
+            wx.EVT_BUTTON, self.on_page1_startcheck_button_click
+        )
         self.m_school_choice1.Bind(wx.EVT_CHOICE, self.on_read_data_school_change)
         self.m_button1.Bind(wx.EVT_BUTTON, self.on_read_data_save_button_click)
         self.m_notebook1.Bind(
@@ -832,6 +835,7 @@ class CostCheckerMainFrame(wx.Frame):
         self.m_totalchart_filePicker1.Unbind(wx.EVT_FILEPICKER_CHANGED, None)
         self.m_needcost_chart_filePicker11.Unbind(wx.EVT_FILEPICKER_CHANGED, None)
         self.m_noneed_chart_filePicker111.Unbind(wx.EVT_FILEPICKER_CHANGED, None)
+        self.page1startcheck_button.Unbind(wx.EVT_BUTTON, None)
         self.m_school_choice1.Unbind(wx.EVT_CHOICE, None)
         self.m_button1.Unbind(wx.EVT_BUTTON, None)
         self.m_dataViewListCtrl1.Unbind(
@@ -944,6 +948,56 @@ class CostCheckerMainFrame(wx.Frame):
         )
         self.current_pscmanager.get_summary_stats()
 
+    def go_for_validate_exempt_only(self):
+        """仅使用【考生总名单 + 免缴费名单】进行校验(适用于未提交缴费名单的学院)"""
+        self.current_psc_errors = {}
+        for response in self.current_pscmanager.validate_against_exempt_list(
+            exempt_file=self.m_noneed_chart_filePicker111.GetPath(),
+        ):
+            """
+            {
+                "总表项目序号": i,
+                "学号": person.student_id,
+                "姓名": person.name,
+                "身份证": person.id_number,
+                "需缴费": False,
+                "原因": "免缴费名单中的【姓名：{}】与总表不一致",
+            }
+            """
+            self.current_psc_errors[response["总表项目序号"]] = response
+            self.m_read_result_textCtrl1.AppendText(
+                f"{response['姓名']}{response['学号']}，证件号{response['身份证']}{'，无需缴费' if response['需缴费'] is False else ('，应缴费' if response['需缴费'] is True else '')}，{response['原因']}\n"
+            )
+
+        # {"total": 0, "shouldpay": 0, "exempt": 0, "error": 0, "grad": 0, "error_rate": 0.0"}
+        self.current_psc_stats = self.current_pscmanager.get_summary_stats()
+        self.short_result_text.SetLabelText(
+            "【检查结果】总人数：{total:3d}\t\t需缴费学生人数：{shouldpay:3d}\t免缴费学生人数：{exempt:3d}\t错误数据：{error:3d}\t错误占比：{error_rate:.2f}%".format(
+                **self.current_psc_stats
+            )
+        )
+        self.current_pscmanager.get_summary_stats()
+
+    def on_page1_startcheck_button_click(self, event):
+        """【开始校对】按钮：仅以【考生总名单 + 免缴费名单】校验，无需缴费名单"""
+        if not self.m_totalchart_filePicker1.GetPath():
+            self.reset_read_result()
+            self.m_read_result_textCtrl1.AppendText(
+                "尚未选择受测学生总表，无法开始校对。\n"
+            )
+            return
+
+        if not self.m_noneed_chart_filePicker111.GetPath():
+            self.reset_read_result()
+            self.m_read_result_textCtrl1.AppendText(
+                "尚未选择免缴费学生名单，无法开始校对。\n"
+            )
+            return
+
+        # 清空旧结果后，仅以免缴费名单进行校验
+        self.reset_read_result()
+        self.go_for_validate_exempt_only()
+
     def on_needpay_chart_file_change(self, event):
         # 先重置结果
         self.reset_read_result()
@@ -970,7 +1024,15 @@ class CostCheckerMainFrame(wx.Frame):
             self.m_totalchart_filePicker1.GetPath()
             and self.m_noneed_chart_filePicker111.GetPath()
         ):
-            self.go_for_validate()
+            if self.m_needcost_chart_filePicker11.GetPath():
+                # 三表齐全，按原有流程校验
+                self.go_for_validate()
+            else:
+                # 未提交缴费名单（仅总表+免缴费名单）时不自动校验，
+                # 等待用户点击【开始校对】按钮
+                self.m_read_result_textCtrl1.AppendText(
+                    "未选择缴费名单：可点击【开始校对】按钮，仅以总表与免缴费名单进行校对。\n"
+                )
         event.Skip()
 
     def on_read_data_school_change(self, event):

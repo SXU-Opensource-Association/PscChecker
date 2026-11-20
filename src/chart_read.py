@@ -539,6 +539,17 @@ class PscPersonManager:
                     "原因": "不在缴费或免缴名单中",
                 }
 
+            # 情况1.5: 俩名单都在
+            elif in_exempt and in_fee:
+                yield {
+                    "总表项目序号": i,
+                    "学号": person.student_id,
+                    "姓名": person.name,
+                    "身份证": person.id_number,
+                    "需缴费": None,
+                    "原因": "同时出于缴费和免缴费名单中",
+                }
+
             # 情况2: 在免缴费名单中
             elif in_exempt:
                 if in_exempt == 1:
@@ -570,100 +581,128 @@ class PscPersonManager:
                                 exempt_ids[_eni]
                             ),
                         }
-                else:
+                else:  # 学号姓名都存在
+                    # 检查是否在同一行中
                     _exe_nme = exempt_names[_eii := exempt_ids.index(person.student_id)]
+                    _exe_id = exempt_ids[exempt_names.index(person.name)]
                     exempt_checked_index.append(_eii)
                     if _exe_nme == person.name:
-                        person.should_pay_cost = False
+                        if _exe_id == person.student_id:
+                            person.should_pay_cost = False
+                        else:
+                            yield {
+                                "总表项目序号": i,
+                                "学号": person.student_id,
+                                "姓名": person.name,
+                                "身份证": person.id_number,
+                                "需缴费": False,
+                                "原因": "免缴费名单中，与总表【相同姓名】者【学号为`{}`】，可能有误".format(
+                                    _exe_id
+                                ),
+                            }
                     else:
+                        if _exe_id == person.student_id:
+                            yield {
+                                "总表项目序号": i,
+                                "学号": person.student_id,
+                                "姓名": person.name,
+                                "身份证": person.id_number,
+                                "需缴费": False,
+                                "原因": "免缴费名单中，与总表【相同学号】者【名曰`{}`】，可能有误".format(
+                                    _exe_nme
+                                ),
+                            }
+                        else:
+                            yield {
+                                "总表项目序号": i,
+                                "学号": person.student_id,
+                                "姓名": person.name,
+                                "身份证": person.id_number,
+                                "需缴费": False,
+                                "原因": "免缴费名单中，该学生姓名学号与【{}{}】错位，需确认这两位同学的情况".format(
+                                    _exe_nme, _exe_id
+                                ),
+                            }
+            # else:
+            #     person.should_pay_cost = True
+            #     if in_fee == 1:
+            #         if person.student_id in fee_ids:
+            #             fee_checked_index.append(fee_ids.index(person.student_id))
+            #         else:
+            #             fee_checked_index.append(fee_names.index(person.name))
+            #     else:
+            #         fee_checked_index.append(fee_ids.index(person.student_id))
+
+            # 情况3: 在缴费名单中
+            elif in_fee:
+                if in_fee == 1:
+                    if person.student_id in fee_ids:
+                        fee_checked_index.append(
+                            _fii := fee_ids.index(person.student_id)
+                        )
                         yield {
                             "总表项目序号": i,
                             "学号": person.student_id,
                             "姓名": person.name,
                             "身份证": person.id_number,
-                            "需缴费": False,
-                            "原因": "免缴费名单中的【姓名{}】与总表不一致".format(
-                                _exe_nme
+                            "需缴费": True,
+                            "原因": "缴费名单中的【姓名：{}】与总表不一致".format(
+                                fee_names[_fii]
                             ),
                         }
-            else:
-                person.should_pay_cost = True
-                if in_fee == 1:
-                    if person.student_id in fee_ids:
-                        fee_checked_index.append(fee_ids.index(person.student_id))
                     else:
-                        fee_checked_index.append(fee_names.index(person.name))
-                else:
-                    fee_checked_index.append(fee_ids.index(person.student_id))
-
-            # # 情况3: 在缴费名单中
-            # if in_fee:
-            #     if in_fee == 1:
-            #         if person.student_id in fee_ids:
-            #             fee_checked_index.append(
-            #                 _fii := fee_ids.index(person.student_id)
-            #             )
-            #             yield {
-            #                 "总表项目序号": i,
-            #                 "学号": person.student_id,
-            #                 "姓名": person.name,
-            #                 "身份证": person.id_number,
-            #                 "需缴费": True,
-            #                 "原因": "缴费名单中的【姓名：{}】与总表不一致".format(
-            #                     fee_names[_fii]
-            #                 ),
-            #             }
-            #         else:
-            #             yield {
-            #                 "总表项目序号": i,
-            #                 "学号": person.student_id,
-            #                 "姓名": person.name,
-            #                 "身份证": person.id_number,
-            #                 "需缴费": True,
-            #                 "原因": "缴费名单中的【学号：{}】与总表不一致".format(
-            #                     fee_ids[fee_names.index(person.name)]
-            #                 ),
-            #             }
-            #     else:
-            #         _fee_nme = fee_names[fee_ids.index(person.student_id)]
-            #         _fee_id = fee_ids[fee_names.index(person.name)]
-            #         if _fee_nme == person.name:
-            #             if _fee_id == person.student_id:
-            #                 person.should_pay_cost = True
-            #             else:
-            #                 yield {
-            #                     "总表项目序号": i,
-            #                     "学号": person.student_id,
-            #                     "姓名": person.name,
-            #                     "身份证": person.id_number,
-            #                     "需缴费": True,
-            #                     "原因": "缴费名单中的【学号{}】与总表不一致".format(
-            #                         _fee_id
-            #                     ),
-            #                 }
-            #         else:
-            #             if _fee_id == person.student_id:
-            #                 yield {
-            #                     "总表项目序号": i,
-            #                     "学号": person.student_id,
-            #                     "姓名": person.name,
-            #                     "身份证": person.id_number,
-            #                     "需缴费": True,
-            #                     "原因": "缴费名单中的【姓名{}】与总表不一致".format(
-            #                         _fee_nme
-            #                     ),
-            #                 }
-            #             else:
-            #                 yield {
-            #                     "总表项目序号": i,
-            #                     "学号": person.student_id,
-            #                     "姓名": person.name,
-            #                     "身份证": person.id_number,
-            #                     "需缴费": True,
-            #                     "原因": "缴费名单中的【学号{}】【姓名{}】皆与总表不一致".format(
-            #                         _fee_id, _fee_nme
-            #                     ),
-            #                 }
+                        fee_checked_index.append(_fii := fee_names.index(person.name))
+                        yield {
+                            "总表项目序号": i,
+                            "学号": person.student_id,
+                            "姓名": person.name,
+                            "身份证": person.id_number,
+                            "需缴费": True,
+                            "原因": "缴费名单中的【学号：{}】与总表不一致".format(
+                                fee_ids[fee_names.index(person.name)]
+                            ),
+                        }
+                else:  # 俩名单都存在
+                    _fee_nme = fee_names[fii := fee_ids.index(person.student_id)]
+                    _fee_id = fee_ids[fee_names.index(person.name)]
+                    fee_checked_index.append(fii)
+                    if _fee_nme == person.name:
+                        if _fee_id == person.student_id:
+                            person.should_pay_cost = True
+                        else:
+                            yield {
+                                "总表项目序号": i,
+                                "学号": person.student_id,
+                                "姓名": person.name,
+                                "身份证": person.id_number,
+                                "需缴费": True,
+                                "原因": "缴费名单中，与总表【相同姓名】者【学号为`{}`】，可能有误".format(
+                                    _fee_id
+                                ),
+                            }
+                    else:
+                        if _fee_id == person.student_id:
+                            yield {
+                                "总表项目序号": i,
+                                "学号": person.student_id,
+                                "姓名": person.name,
+                                "身份证": person.id_number,
+                                "需缴费": True,
+                                "原因": "缴费名单中，与总表【相同学号】者【名曰`{}`】，可能有误".format(
+                                    _fee_nme
+                                ),
+                            }
+                        else:
+                            yield {
+                                "总表项目序号": i,
+                                "学号": person.student_id,
+                                "姓名": person.name,
+                                "身份证": person.id_number,
+                                "需缴费": True,
+                                "原因": "缴费名单中，该学生姓名学号与【{}{}】错位，需确认这两位同学的情况".format(
+                                    _fee_nme, _fee_id
+                                ),
+                            }
 
         # 7. 检查缴费名单中但不在总表中的人
         for i in range(len(fee_ids)):
@@ -685,6 +724,160 @@ class PscPersonManager:
                 }
 
         # 8. 检查免缴费名单中但不在总表中的人
+        for i in range(len(exempt_ids)):
+            if i not in exempt_checked_index:
+                self.students.append(
+                    CheckPerson(
+                        name=exempt_names[i],
+                        student_id=exempt_ids[i],
+                        should_pay_cost=False,
+                    )
+                )
+                yield {
+                    "总表项目序号": len(self.students) - 1,
+                    "学号": exempt_ids[i],
+                    "姓名": exempt_names[i],
+                    "身份证": "??",
+                    "需缴费": False,
+                    "原因": "在免缴费名单中但未在总表中找到",
+                }
+
+    def validate_against_exempt_list(
+        self, exempt_file: str | Path
+    ) -> Iterable[Dict[str, Any]]:
+        """
+        仅校验总表与免缴费名单的一致性
+
+        适用于只提交考生总名单与免缴费名单（未提交缴费名单）的学院。
+        总表中不在免缴费名单中的考生，静默判定为“需缴费”，不作为错误报出。
+
+        Args:
+            exempt_file: 免缴费名单Excel文件路径
+
+        Yields:
+            dict: 与 validate_against_fee_lists 结构一致的结果字典
+        """
+        if (not exempt_file) or (not Path(exempt_file).is_file()):
+            raise ValueError("未提供免缴费名单文件")
+
+        # 1. 读取免缴费名单（读取方式与 validate_against_fee_lists 保持一致）
+        exempt_df: pd.DataFrame = pd.read_excel(
+            exempt_file, skiprows=2, dtype=str
+        ).fillna("")
+        exempt_df = exempt_df[["序号", "学院", "姓名", "学号", "备注"]]
+
+        # 2. 构建索引
+        exempt_ids: List[str] = []
+        exempt_names: List[str] = []
+        for _, row in exempt_df.iterrows():
+            exempt_ids.append(str(row["学号"]).strip())
+            exempt_names.append(str(row["姓名"]).strip())
+
+        # 3. 检查总表中的身份证号格式
+        for i, person in enumerate(self.students):
+            person.student_id = person.student_id.strip()
+            person.name = person.name.strip()
+            person.id_number = person.id_number.strip()
+            if (not validate_id_number(person.id_number)) and (
+                person.id_type == "身份证"
+            ):
+                yield {
+                    "总表项目序号": i,
+                    "学号": person.student_id,
+                    "姓名": person.name,
+                    "身份证": person.id_number,
+                    "需缴费": None,
+                    "原因": "身份证号格式错误",
+                }
+
+        exempt_checked_index: List[int] = []
+
+        # 4. 检查总表中的人是否在免缴费名单中
+        for i, person in enumerate(self.students):
+            in_exempt = (person.student_id in exempt_ids) + (
+                person.name in exempt_names
+            )
+
+            # 情况1: 不在免缴费名单中，静默判定为需缴费
+            if not in_exempt:
+                person.should_pay_cost = True
+                continue
+
+            # 情况2: 只有学号或只有姓名在免缴费名单中找到
+            if in_exempt == 1:
+                if person.student_id in exempt_ids:
+                    exempt_checked_index.append(
+                        _eii := exempt_ids.index(person.student_id)
+                    )
+                    yield {
+                        "总表项目序号": i,
+                        "学号": person.student_id,
+                        "姓名": person.name,
+                        "身份证": person.id_number,
+                        "需缴费": False,
+                        "原因": "免缴费名单中的【姓名：{}】与总表不一致".format(
+                            exempt_names[_eii]
+                        ),
+                    }
+                else:
+                    exempt_checked_index.append(_eni := exempt_names.index(person.name))
+                    yield {
+                        "总表项目序号": i,
+                        "学号": person.student_id,
+                        "姓名": person.name,
+                        "身份证": person.id_number,
+                        "需缴费": False,
+                        "原因": "免缴费名单中的【学号：{}】与总表不一致".format(
+                            exempt_ids[_eni]
+                        ),
+                    }
+
+            # 情况3: 学号与姓名均在免缴费名单中找到
+            # （与 validate_against_fee_lists 中对应分支逻辑保持一致）
+            else:
+                # 检查是否在同一行中
+                _exe_nme = exempt_names[_eii := exempt_ids.index(person.student_id)]
+                _exe_id = exempt_ids[exempt_names.index(person.name)]
+                exempt_checked_index.append(_eii)
+                if _exe_nme == person.name:
+                    if _exe_id == person.student_id:
+                        person.should_pay_cost = False
+                    else:
+                        yield {
+                            "总表项目序号": i,
+                            "学号": person.student_id,
+                            "姓名": person.name,
+                            "身份证": person.id_number,
+                            "需缴费": False,
+                            "原因": "免缴费名单中，与总表【相同姓名】者【学号为`{}`】，可能有误".format(
+                                _exe_id
+                            ),
+                        }
+                else:
+                    if _exe_id == person.student_id:
+                        yield {
+                            "总表项目序号": i,
+                            "学号": person.student_id,
+                            "姓名": person.name,
+                            "身份证": person.id_number,
+                            "需缴费": False,
+                            "原因": "免缴费名单中，与总表【相同学号】者【名曰`{}`】，可能有误".format(
+                                _exe_nme
+                            ),
+                        }
+                    else:
+                        yield {
+                            "总表项目序号": i,
+                            "学号": person.student_id,
+                            "姓名": person.name,
+                            "身份证": person.id_number,
+                            "需缴费": False,
+                            "原因": "免缴费名单中，该学生姓名学号与【{}{}】错位，需确认这两位同学的情况".format(
+                                _exe_nme, _exe_id
+                            ),
+                        }
+
+        # 5. 检查免缴费名单中但不在总表中的人
         for i in range(len(exempt_ids)):
             if i not in exempt_checked_index:
                 self.students.append(

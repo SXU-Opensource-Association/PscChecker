@@ -2,9 +2,10 @@
 
 # 版权标记文件
 src/yanlun.py
-
+tools/gen_yanlun_payload.py
 
 # 数据文件
+result/
 impdata/
 src/result/
 
